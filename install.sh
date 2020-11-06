@@ -29,9 +29,9 @@ else
     echo -e "${red}未检测到系统版本，请联系脚本作者！${plain}\n" && exit 1
 fi
 
-if [ $(getconf WORD_BIT) != '32' ] && [ $(getconf LONG_BIT) != '64' ] ; then
+if [ "$(getconf WORD_BIT)" != '32' ] && [ "$(getconf LONG_BIT)" != '64' ] ; then
     echo "本软件不支持 32 位系统(x86)，请使用 64 位系统(x86_64)，如果检测有误，请联系作者"
-    exit -1
+    exit 2
 fi
 
 os_version=""
@@ -89,13 +89,30 @@ install_soga() {
     if [[ -e /usr/local/soga/ ]]; then
         rm /usr/local/soga/ -rf
     fi
-    last_version=$(curl -Ls "https://api.github.com/repos/sprov065/soga/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
-    echo -e "检测到 soga 最新版本：${last_version}，开始安装"
-    wget -N --no-check-certificate -O /usr/local/soga.tar.gz https://github.com/sprov065/soga/releases/download/${last_version}/soga-linux64.tar.gz
-    if [[ $? -ne 0 ]]; then
-        echo -e "${red}下载 soga 失败，请确保你的服务器能够下载 Github 的文件，如果多次安装失败，请参考手动安装教程${plain}"
-        exit 1
+
+    if  [ $# == 0 ] ;then
+        last_version=$(curl -Ls "https://api.github.com/repos/sprov065/soga/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
+        if [[ ! -n "$last_version" ]]; then
+            echo -e "${red}检测 soga 版本失败，可能是超出 Github API 限制，请稍后再试，或手动指定 soga 版本安装${plain}"
+            exit 1
+        fi
+        echo -e "检测到 soga 最新版本：${last_version}，开始安装"
+        wget -N --no-check-certificate -O /usr/local/soga.tar.gz https://github.com/sprov065/soga/releases/download/${last_version}/soga-linux64.tar.gz
+        if [[ $? -ne 0 ]]; then
+            echo -e "${red}下载 soga 失败，请确保你的服务器能够下载 Github 的文件${plain}"
+            exit 1
+        fi
+    else
+        last_version=$1
+        url="https://github.com/sprov065/soga/releases/download/${last_version}/soga-linux64.tar.gz"
+        echo -e "开始安装 soga v$1"
+        wget -N --no-check-certificate -O /usr/local/soga.tar.gz ${url}
+        if [[ $? -ne 0 ]]; then
+            echo -e "${red}下载 soga v$1 失败，请确保此版本存在${plain}"
+            exit 1
+        fi
     fi
+
     tar zxvf soga.tar.gz
     rm soga.tar.gz -f
     cd soga
@@ -122,6 +139,13 @@ install_soga() {
             echo -e "${red}soga 可能启动失败，请稍后使用 soga log 查看日志信息，若无法启动，则可能更改了配置格式，请前往 wiki 查看：https://github.com/sprov065/soga/wiki${plain}"
         fi
     fi
+
+    if [[ ! -f /etc/soga/blockList ]]; then
+        cp blockList /etc/soga/
+    fi
+    if [[ ! -f /etc/soga/dns.yml ]]; then
+        cp dns.yml /etc/soga/
+    fi
     curl -o /usr/bin/soga -Ls https://raw.githubusercontent.com/sprov065/soga/master/soga.sh
     chmod +x /usr/bin/soga
     echo -e ""
@@ -136,6 +160,7 @@ install_soga() {
     echo "soga disable      - 取消 soga 开机自启"
     echo "soga log          - 查看 soga 日志"
     echo "soga update       - 更新 soga"
+    echo "soga update x.x.x - 更新 soga 指定版本"
     echo "soga install      - 安装 soga"
     echo "soga uninstall    - 卸载 soga"
     echo "soga version      - 查看 soga 版本"
@@ -145,4 +170,4 @@ install_soga() {
 echo -e "${green}开始安装${plain}"
 install_base
 install_acme
-install_soga
+install_soga $1
